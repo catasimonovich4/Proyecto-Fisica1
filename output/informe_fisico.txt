@@ -1,0 +1,7 @@
+===== RESUMEN DEL ANÁLISIS FÍSICO =====
+
+--- REBOTE ---
+Velocidad antes del impacto: 1.68 m/s
+Velocidad después del impacto: 2.77 m/s
+Coeficiente de restitución: 1.653
+Energía perdida en el impacto: -160.2%
