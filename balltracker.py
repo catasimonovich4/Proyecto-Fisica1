@@ -377,17 +377,21 @@ class BallTracker:
         
         print(f"Detección automática: Impulso inicio={self.impulse_start_frame}, " +
               f"fin={self.impulse_end_frame}, impacto={self.ground_impact_frame}")
-    
+        
     def analyze_physics(self):
         """
         Analiza la física del movimiento, calculando velocidades, aceleraciones,
         energía, fuerza y otros parámetros físicos.
         """
+        # Verifica si hay al menos 10 posiciones para poder hacer un análisis confiable. 
+        # Si no, sale de la función.
         if len(self.positions) < 10:
             print("No hay suficientes datos para analizar.")
             return {}
         
-        # Convertir posiciones a metros (y invertir el eje y para que hacia arriba sea positivo)
+        # Convertir posiciones a metros (e invertir el eje y para que hacia arriba sea positivo)
+        # Se invierte el eje y porque en imágenes el y=0 está arriba, 
+        # pero en física queremos que "más alto" sea "mayor y".
         positions_m = []
         for x, y in self.positions:
             # Convertir píxeles a metros y hacer que y aumente hacia arriba
@@ -396,77 +400,98 @@ class BallTracker:
             positions_m.append((x_m, y_m))
         
         # Extraer componentes x e y
+        # Se crean dos listas separadas: una con todas las x y otra con todas las y, 
+        # para poder analizarlas por separado.
         x_pos = [p[0] for p in positions_m]
         y_pos = [p[1] for p in positions_m]
         
         # Aplicar filtro Savitzky-Golay para suavizar las posiciones
+        # Se usa un filtro de suavizado que mantiene la forma general del movimiento 
+        # pero elimina el ruido (pequeñas oscilaciones artificiales).
         window = min(21, len(y_pos) - 1 if len(y_pos) % 2 == 0 else len(y_pos))
         poly = 3
-        
+        # Este filtro ayuda a evitar errores cuando se calculan derivadas (velocidad y aceleración).
         if len(y_pos) > window:
             y_smooth = savgol_filter(y_pos, window, poly)
             x_smooth = savgol_filter(x_pos, window, poly)
         else:
             y_smooth = y_pos
-            x_smooth = x_pos
+            x_smooth = x_pos    
         
         # Calcular velocidades por diferenciación numérica
+        # Velocidad = cambio de posición en el tiempo. 
+        # np.gradient hace una derivada numérica: mide cuánto cambia la posición cuadro a cuadro, dividido por dt.
+        # dt es el teimpo entre dos cuadros (por ejempo, si grabamos a 30fps, dt=1/30)
+        # Esto da la velocidad en cada instante de tiempo.
         vx = np.gradient(x_smooth, self.dt)
         vy = np.gradient(y_smooth, self.dt)
         
         # Magnitud de la velocidad
+        # La magnitud de la velocidad es la longitud del vector velocidad en el plano.
+        # Calcula la velocidad total en cada momento como el teorema de Pitágoras: √(vx² + vy²)
         v_mag = np.sqrt(vx**2 + vy**2)
         
         # Calcular aceleraciones
+        # Aceleración = cambio de velocidad en el tiempo.
+        # Igual que antes, pero ahora derivamos la velocidad para obtener la aceleración.
         ax = np.gradient(vx, self.dt)
         ay = np.gradient(vy, self.dt)
         
         # Magnitud de la aceleración
+        # La magnitud de la aceleración es la longitud del vector aceleración en el plano.
+        # Aceleración total = √(ax² + ay²)
         a_mag = np.sqrt(ax**2 + ay**2)
         
-        # Masa estimada de la pelota (asumimos 0.1 kg para una pelota pequeña)
+        # -----------------------------------------------------------------------------------
+        # Energia cinetica 
+        # Ec = ½ * m * v²: energía asociada al movimiento. 
+        # Masa estimada de la pelota (asumimos 0.1 kg para una pelota pequeña, puede ajustarse a cada caso)
         # Esto debería ser un parámetro configurable en un caso real
         mass = 0.1  # kg
-        
-        # Energía cinética: 1/2 * m * v²
         kinetic_energy = 0.5 * mass * v_mag**2
         
-        # Energía potencial: m * g * h
+        # Energía potencial gravidatoria: m * g * h
         # Altura relativa al punto más bajo
+        # Mide la energía por estar a cierta altura sobre el mínimo detectado (usado como referencia h = 0).
         h_min = min(y_smooth)
         potential_energy = mass * self.g * (y_smooth - h_min)
         
         # Energía total
+        # Suma de la energía cinética y la potencial en cada instante.
         total_energy = kinetic_energy + potential_energy
         
+        # -----------------------------------------------------------------------------------
+        # Fuerza (segunda ley de Newton)
         # Fuerza aplicada: m * a
+        # Calcula la fuerza aplicada en cada eje y su magnitud.
         force_x = mass * ax
         force_y = mass * ay
         force_mag = mass * a_mag
         
-        # Analizar fase de impulso si se ha marcado
+        # Fase 1 – Impulso inicial
         impulse_data = {}
+        # Si se marcaron los cuadros donde estás en contacto con la pelota (inicio y fin del impulso), se analiza:
         if self.impulse_start_frame is not None and self.impulse_end_frame is not None:
             start_idx = self.impulse_start_frame
             end_idx = self.impulse_end_frame
-            
-            # Duración del impulso
+            # Se calcula:
+            # 1. Duración del impulso
             impulse_duration = (end_idx - start_idx) / self.fps
             
-            # Velocidad inicial y final durante el impulso
+            # 2. Velocidad inicial y final durante el impulso
             v_initial = v_mag[start_idx] if start_idx < len(v_mag) else 0
             v_final = v_mag[end_idx] if end_idx < len(v_mag) else v_mag[-1]
             
-            # Aceleración promedio durante el impulso
+            # 3. Aceleración promedio durante el impulso
             a_avg = (v_final - v_initial) / impulse_duration if impulse_duration > 0 else 0
             
-            # Fuerza promedio durante el impulso
+            # 4. Fuerza promedio durante el impulso
             f_avg = mass * a_avg
             
-            # Impulso: F * Δt
+            # 5. Impulso: F * Δt
             impulse = f_avg * impulse_duration
             
-            # Altura máxima teórica: v²/(2g)
+            # 6. Altura máxima teórica: v²/(2g)
             max_height_theoretical = (v_final**2) / (2 * self.g)
             
             impulse_data = {
@@ -479,16 +504,18 @@ class BallTracker:
                 "max_height_theoretical": max_height_theoretical
             }
         
+        # Fase 2 – Vuelo libre
         # Analizar fase de vuelo libre
         flight_data = {}
+        # Si se detectó cuándo la pelota dejó tu mano y cuándo tocó el suelo:
         if self.contact_loss_frame is not None and self.ground_impact_frame is not None:
             start_idx = self.contact_loss_frame
             end_idx = self.ground_impact_frame
-            
-            # Duración del vuelo
+            # Se calcula 
+            # 1. Duración del vuelo
             flight_duration = (end_idx - start_idx) / self.fps
             
-            # Altura máxima real
+            # 2. Altura máxima real
             if start_idx < len(y_smooth) and end_idx < len(y_smooth):
                 flight_y = y_smooth[start_idx:end_idx+1]
                 max_height_idx = np.argmax(flight_y)
@@ -497,7 +524,7 @@ class BallTracker:
                 # Posición y tiempo en el punto más alto
                 max_height_time = self.times[start_idx + max_height_idx]
                 
-                # Velocidad en el punto más alto (debería ser cercana a cero en el eje y)
+                # 3. Velocidad en el punto más alto (debería ser cercana a cero en el eje y)
                 max_height_vy = vy[start_idx + max_height_idx]
                 
                 flight_data = {
@@ -507,27 +534,28 @@ class BallTracker:
                     "max_height_vy": max_height_vy
                 }
                 
-                # Verificar conservación de energía
+                # 4. Verificar conservación de energía
                 if start_idx < len(total_energy) and start_idx + max_height_idx < len(total_energy):
                     energy_initial = total_energy[start_idx]
                     energy_at_max = total_energy[start_idx + max_height_idx]
                     energy_conservation = energy_at_max / energy_initial if energy_initial > 0 else 0
                     flight_data["energy_conservation"] = energy_conservation
         
+        # Fase 3 - Rebote
         # Analizar rebote si está disponible
         bounce_data = {}
         if self.ground_impact_frame is not None and self.ground_impact_frame < len(self.positions) - 10:
             impact_idx = self.ground_impact_frame
             
-            # Velocidad antes y después del impacto
+            # 1. Velocidad antes y después del impacto
             if impact_idx > 0 and impact_idx < len(v_mag) - 1:
                 v_before = v_mag[impact_idx - 1]
                 v_after = v_mag[impact_idx + 1]
                 
-                # Coeficiente de restitución: v_after / v_before
+                # 2. Coeficiente de restitución: v_after / v_before
                 coef_restitution = abs(v_after / v_before) if v_before > 0 else 0
                 
-                # Energía perdida en el impacto
+                # 3. Energía perdida en el impacto
                 e_before = total_energy[impact_idx - 1]
                 e_after = total_energy[impact_idx + 1]
                 energy_loss = 1 - (e_after / e_before) if e_before > 0 else 0
@@ -542,6 +570,8 @@ class BallTracker:
                 }
         
         # Empaquetar todos los datos para retornar
+        # Devuelve un diccionario completo con todos los datos físicos: 
+        # posiciones, velocidades, energías, fuerza, impulso, datos del vuelo y del rebote.
         results = {
             "times": self.times,
             "positions_x": x_smooth,
@@ -588,7 +618,7 @@ class BallTracker:
         # 1. Posición vs Tiempo
         plt.subplot(5, 1, 1)
         plt.plot(times, results["positions_y"], 'b-', label='Posición y')
-        plt.plot(times, results["positions_x"], 'r-', label='Posición x')
+        #plt.plot(times, results["positions_x"], 'r-', label='Posición x')
         plt.xlabel('Tiempo (s)')
         plt.ylabel('Posición (m)')
         plt.title('Posición vs Tiempo')
@@ -606,7 +636,7 @@ class BallTracker:
         # 2. Velocidad vs Tiempo
         plt.subplot(5, 1, 2)
         plt.plot(times, results["velocities_y"], 'b-', label='Velocidad y')
-        plt.plot(times, results["velocities_x"], 'r-', label='Velocidad x')
+        #plt.plot(times, results["velocities_x"], 'r-', label='Velocidad x')
         plt.plot(times, results["velocity_magnitude"], 'k-', label='Magnitud')
         plt.xlabel('Tiempo (s)')
         plt.ylabel('Velocidad (m/s)')
@@ -625,7 +655,7 @@ class BallTracker:
         # 3. Aceleración vs Tiempo
         plt.subplot(5, 1, 3)
         plt.plot(times, results["accelerations_y"], 'b-', label='Aceleración y')
-        plt.plot(times, results["accelerations_x"], 'r-', label='Aceleración x')
+        #plt.plot(times, results["accelerations_x"], 'r-', label='Aceleración x')
         plt.plot(times, results["acceleration_magnitude"], 'k-', label='Magnitud')
         # Línea horizontal para g
         plt.axhline(y=-self.g, color='g', linestyle='--', label='g = -9.81 m/s²')
