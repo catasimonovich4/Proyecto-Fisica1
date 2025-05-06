@@ -220,7 +220,7 @@ class BallTracker:
             ret, frame = self.cap.read()
             if not ret:
                 break
-                
+            
             # Guardar una copia para visualización
             display_frame = frame.copy()
             
@@ -632,7 +632,8 @@ class BallTracker:
             plt.axvline(x=times[self.impulse_end_frame], color='r', linestyle='--', label='Fin Impulso')
         if self.ground_impact_frame is not None and self.ground_impact_frame < len(times):
             plt.axvline(x=times[self.ground_impact_frame], color='m', linestyle='--', label='Impacto Suelo')
-        
+         
+         
         # 2. Velocidad vs Tiempo
         plt.subplot(5, 1, 2)
         plt.plot(times, results["velocities_y"], 'b-', label='Velocidad y')
@@ -644,6 +645,7 @@ class BallTracker:
         plt.grid(True)
         plt.legend()
         
+         
         # Marcar fases
         if self.impulse_start_frame is not None and self.impulse_start_frame < len(times):
             plt.axvline(x=times[self.impulse_start_frame], color='g', linestyle='--')
@@ -651,7 +653,8 @@ class BallTracker:
             plt.axvline(x=times[self.impulse_end_frame], color='r', linestyle='--')
         if self.ground_impact_frame is not None and self.ground_impact_frame < len(times):
             plt.axvline(x=times[self.ground_impact_frame], color='m', linestyle='--')
-        
+       
+         
         # 3. Aceleración vs Tiempo
         plt.subplot(5, 1, 3)
         plt.plot(times, results["accelerations_y"], 'b-', label='Aceleración y')
@@ -665,6 +668,7 @@ class BallTracker:
         plt.grid(True)
         plt.legend()
         
+        
         # Marcar fases
         if self.impulse_start_frame is not None and self.impulse_start_frame < len(times):
             plt.axvline(x=times[self.impulse_start_frame], color='g', linestyle='--')
@@ -672,6 +676,7 @@ class BallTracker:
             plt.axvline(x=times[self.impulse_end_frame], color='r', linestyle='--')
         if self.ground_impact_frame is not None and self.ground_impact_frame < len(times):
             plt.axvline(x=times[self.ground_impact_frame], color='m', linestyle='--')
+        
         
         # 4. Energía vs Tiempo
         plt.subplot(5, 1, 4)
@@ -684,6 +689,7 @@ class BallTracker:
         plt.grid(True)
         plt.legend()
         
+        
         # Marcar fases
         if self.impulse_start_frame is not None and self.impulse_start_frame < len(times):
             plt.axvline(x=times[self.impulse_start_frame], color='g', linestyle='--')
@@ -691,6 +697,7 @@ class BallTracker:
             plt.axvline(x=times[self.impulse_end_frame], color='r', linestyle='--')
         if self.ground_impact_frame is not None and self.ground_impact_frame < len(times):
             plt.axvline(x=times[self.ground_impact_frame], color='m', linestyle='--')
+        
         
         # 5. Fuerza vs Tiempo
         plt.subplot(5, 1, 5)
@@ -711,6 +718,7 @@ class BallTracker:
         if self.ground_impact_frame is not None and self.ground_impact_frame < len(times):
             plt.axvline(x=times[self.ground_impact_frame], color='m', linestyle='--')
         
+         
         plt.tight_layout()
         
         if save_dir:
