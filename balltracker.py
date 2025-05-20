@@ -763,6 +763,22 @@ class BallTracker:
         if save_dir:
             plt.savefig(os.path.join(save_dir, 'trayectoria.png'), dpi=300)
         
+        # Grafico de la trayectoria y la fuerza de gravedad
+        plt.figure(figsize=(10, 8))
+        #plt.plot(results["positions_x"], results["positions_y"], 'bo-', label='Trayectoria')
+        # Dibujar la pelota y la flecha de gravedad en cada punto
+        for x, y in zip(results["positions_x"], results["positions_y"]):
+            plt.plot(x, y, 'ko', markersize=12, alpha=0.5)  # Pelota
+            # Flecha de gravedad: siempre hacia abajo, longitud proporcional a la fuerza
+            plt.arrow(x, y, 0, -0.5, head_width=0.05, head_length=0.07, fc='red', ec='red')
+        plt.xlabel('Posición X (m)')
+        plt.ylabel('Posición Y (m)')
+        plt.title('Trayectoria y Fuerza de Gravedad')
+        plt.grid(True)
+        plt.axis('equal')
+        if save_dir:
+            plt.savefig(os.path.join(save_dir, 'trayectoria_fuerza_gravedad.png'), dpi=300)
+        
         plt.show()
         
         # Generar informe de texto con los resultados más importantes
